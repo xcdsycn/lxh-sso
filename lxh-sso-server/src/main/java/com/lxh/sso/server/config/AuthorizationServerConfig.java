@@ -1,8 +1,12 @@
 package com.lxh.sso.server.config;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
@@ -15,21 +19,31 @@ import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
 
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Configuration
 @EnableAuthorizationServer
+@RequiredArgsConstructor
 public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
+
+    private final PasswordEncoder passwordEncoder;
+
+    private static final String BCRYPT = "{bcrypt}";
+
+    private final AuthenticationManager authenticationManager;
+
     @Override
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        log.info("===> 密码：{}", passwordEncoder.encode("123456"));
         // 定义了两个客户端应用的通行证
         clients.inMemory()
                 .withClient("sheep1")
-                .secret(new BCryptPasswordEncoder().encode("123456"))
+                .secret(BCRYPT + passwordEncoder.encode("123456"))
                 .authorizedGrantTypes("authorization_code", "refresh_token")
                 .scopes("all")
                 .autoApprove(false)
                 .and()
                 .withClient("sheep2")
-                .secret(new BCryptPasswordEncoder().encode("123456"))
+                .secret(BCRYPT + passwordEncoder.encode("123456"))
                 .authorizedGrantTypes("authorization_code", "refresh_token")
                 .scopes("all")
                 .autoApprove(false);
@@ -45,14 +59,12 @@ public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdap
         tokenServices.setTokenEnhancer(endpoints.getTokenEnhancer());
         tokenServices.setAccessTokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(1)); // 一天有效期
         endpoints.tokenServices(tokenServices);
+        endpoints.authenticationManager(authenticationManager);
     }
 
     @Override
     public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
-        security.tokenKeyAccess("permitAll()")
-        .checkTokenAccess("permitAll()")
-        .allowFormAuthenticationForClients()
-        ;
+        security.tokenKeyAccess("isAuthenticated()");
     }
 
     @Bean
